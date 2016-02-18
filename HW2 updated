@@ -1,0 +1,127 @@
+close all
+%%%% Set up parameters
+alpha = 0.35;
+beta = 0.99;
+delta = 0.025;
+sigma = 2;
+T_mat = [0.977, 1-0.977; 1 - 0.926, 0.926];
+%A = [1.1, 0.678];
+A = [1.29, hehe(1.29)];
+%create hehe.m
+function y = hehe(x)
+y=(1-0.763*x)/0.237;
+end 
+
+
+%Problem1: FE:v(k)=max
+%{[A*(k^alpha)+(1-sigma)*k-k']^(1-sigma)}/(1-sigma)+beta*v(k')
+
+%%%% Set up discretized state space
+k_min = 0;
+k_max = 45;
+num_k = 11; % number of points in the grid for k
+
+k = linspace(k_min, k_max, num_k);
+%generate several k
+
+k_mat = repmat(k', [1 num_k]); % this will be useful in a bit
+%generate several k 11 times
+
+%%%% Set up consumption and return function
+% 1st dim(rows): k today, 2nd dim (cols): k' chosen for tomorrow
+cons(:,:,1) = A(1) * k_mat .^ alpha + (1 - delta) * k_mat - k_mat'; 
+% from the constraint, in the A high case, generate all c given different
+% combo of k and k'
+cons(:,:,2) = A(2) * k_mat .^ alpha + (1 - delta) * k_mat - k_mat';
+
+ret = cons .^ (1 - sigma) / (1 - sigma); % return function
+% negative consumption is not possible -> make it irrelevant by assigning
+% it very large negative utility
+%given k and k', we can get the No. value of the value funtion
+ret(cons < 0) = -Inf;
+
+%%%% Iteration
+dis = 1; tol = 1e-06; % tolerance for stopping 
+%v_guess = zeros(2, num_k);
+v_guess = zeros(1, num_k,2);
+%set initial value of value function to 0
+while dis > tol
+    % an alternative, more direct way to compute the value array:
+    %value_mat_alt = ret + beta * ...
+       % repmat(permute((T_mat * v_guess), [3 2 1]), [num_k 1 1]);
+    
+    % compute the utility value for all possible combinations of k and k':
+   %finish from here!
+    value_mat(:,:,1) = ret(:,:,1) + beta * ( ...
+        T_mat(1,1) * repmat(v_guess(1,:,1), [num_k 1]) + ...
+        T_mat(1,2) * repmat(v_guess(1,:,2), [num_k 1])); 
+   
+    value_mat(:,:,2) = ret(:,:,2) + beta * ( ...
+        T_mat(2,1) * repmat(v_guess(1,:,1), [num_k 1]) + ...
+        T_mat(2,2) * repmat(v_guess(1,:,2), [num_k 1]));
+    
+    % find the optimal k' for every k:
+    [vfn, pol_indx] = max(value_mat, [], 2);
+    % find max value for each row
+    %vfn = vfn';
+    vfn=permute(vfn,[2 1 3]);
+    
+    % what is the distance between current guess and value function
+    dis = max(abs(vfn - v_guess));
+    
+    % if distance is larger than tolerance, update current guess and
+    % continue, otherwise exit the loop
+    v_guess = vfn;
+end
+
+g = k(pol_indx); % policy function
+%Problem 2&3
+subplot(2,2,1);
+plot(k,vfn(1,:,1))
+subplot(2,2,2);
+plot(k,vfn(1,:,2))
+subplot(2,2,3);
+plot(k,g(:,1,1))
+subplot(2,2,4);
+plot(k,g(:,1,2))
+figure
+%Problem 2
+% see from the figure, we know the value function is increasing over K and
+% concave.
+%Problem 3
+%from the figure, we can see that g(policy function) is increasing in K and
+%A.
+% we know saving in our case is just the s=k'-(1-delta)*k
+kk=zeros(1,11,2);
+kk(:,:,1)=k;
+kk(:,:,2)=k;
+KK=kk;
+s=g-(1-delta)*permute(KK,[2 1 3]);
+subplot(2,1,1);
+plot(k,s(:,1,1))
+subplot(2,1,2);
+plot(k,s(:,1,2))
+% we can see that saving is not nessaceryly increase in K and A.
+
+%Problem4
+%we all know the fact that Y=K'+C-(1-delta)*K
+%when A in H level:
+Y=zeros(11,1,2);
+CONSOptimal=zeros(11,1,2);
+for i=1:11
+CONSOptimal(i,1,1)=cons(i,pol_indx(i,1,1),1);
+CONSOptimal(i,1,2)=cons(i,pol_indx(i,1,2),2);
+end
+Y(:,1,:)=g(:,1,:)+CONSOptimal-(1-delta)*permute(KK,[2 1 3]);
+draw=binornd(1,0.763,[100,1]);
+OUTPUT=zeros(100,1);
+for i=1:100
+    if draw(i,1)==1
+    OUTPUT(i,1)=randsample(Y(:,1,1),1);
+    else
+        OUTPUT(i,1)=randsample(Y(:,1,2),1);
+    end 
+end 
+haha=std(OUTPUT);
+%you put different value of Ah and calibrate the value haha=1.18, you will
+%find that Ah should equal 1.29
